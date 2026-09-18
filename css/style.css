@@ -1,0 +1,519 @@
+/* ============================================================
+   style.css — GBA-era look, mobile first.
+   Colour tokens at the top; change the palette in one place.
+   ============================================================ */
+
+:root {
+  --screen-w: 480px;
+  --ink:        #24303f;
+  --ink-soft:   #5a6b80;
+  --paper:      #f6f4ec;
+  --paper-edge: #ddd8c6;
+  --frame:      #2b2f3a;
+  --frame-2:    #454b5c;
+  --accent:     #d94f4f;
+  --accent-2:   #3f6fd1;
+  --gold:       #f0c14b;
+  --hp-hi:      #4cc26a;
+  --hp-mid:     #f0c14b;
+  --hp-lo:      #e05252;
+  --sky-1:      #7cc6f0;
+  --sky-2:      #cfe9f7;
+  --grass:      #8fd07a;
+  --shadow:     0 4px 0 rgba(0,0,0,.35);
+  --font: "Pixelify Sans", "Courier New", ui-monospace, monospace;
+  /* Pixelify is lovely as chrome but hard work as prose on a phone, so
+     everything the guest actually READS — dialogue, the party card, the
+     message they type — uses a rounded face instead. */
+  --font-body: "Varela Round", "Segoe UI", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+/* Pixelify ships an fi ligature that reads as a capital A — "finally"
+   comes out "Anally". No ligatures anywhere; nothing here needs them. */
+* { font-variant-ligatures: none; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: #14171f;
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+  overscroll-behavior: none;
+}
+
+body {
+  min-height: 100svh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 50% 0%, #232838 0%, #14171f 70%);
+}
+
+/* ---------- device frame ---------- */
+#device {
+  width: 100%;
+  max-width: var(--screen-w);
+  background: var(--frame);
+  border-radius: 14px;
+  padding: 10px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.6), inset 0 0 0 2px var(--frame-2);
+}
+
+#screen {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4.5;
+  max-height: 84svh;
+  background: var(--paper);
+  border: 3px solid #1b1e26;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  image-rendering: pixelated;
+}
+
+/* ---------- scenes ---------- */
+.scene { position: absolute; inset: 0; display: none; flex-direction: column; }
+.scene.active { display: flex; }
+
+/* ---------- title ---------- */
+#scene-title {
+  align-items: center; justify-content: center; gap: 14px;
+  background: linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 62%, var(--grass) 62%, #6fbb5c 100%);
+  text-align: center; padding: 20px;
+}
+#title-logo { width: 78%; max-width: 280px; }
+#scene-title h1 {
+  margin: 0; font-size: clamp(22px, 7vw, 34px); letter-spacing: 1px;
+  color: #fff; text-shadow: 3px 3px 0 var(--accent), 6px 6px 0 rgba(0,0,0,.25);
+}
+#scene-title .sub { margin: 0; color: var(--ink); font-size: 14px; opacity: .85; }
+.press-start { margin-top: 8px; font-size: 15px; color: var(--ink); animation: blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ---------- dialogue stage ---------- */
+.stage {
+  flex: 1; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, var(--sky-2) 0%, #eef6fb 70%, #e3ecd8 100%);
+  padding: 18px;
+}
+.portrait {
+  max-height: 100%; max-width: 86%; width: auto; object-fit: contain;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.18));
+}
+#scene-talk .stage { align-items: flex-end; padding: 0 10px 0; overflow: hidden; }
+
+/* The portrait sits in a wrapper that shrink-wraps it exactly, so anything
+   positioned in % lands on the same spot on the art at any screen size. */
+.portrait-wrap {
+  position: relative; height: 100%; display: flex; align-items: flex-end; justify-content: flex-end;
+  transition: transform .55s cubic-bezier(.3,.8,.35,1);
+  will-change: transform;
+}
+/* a short push-in while she writes, so the name on her palm is actually legible */
+.portrait-wrap.zoom-hand { transform: scale(var(--zoom, 2.1)); }
+@media (prefers-reduced-motion: reduce) { .portrait-wrap { transition: none; } }
+.portrait-wrap .portrait { display: block; }
+
+/* Professor Pearl's raised palm is at 10% across, 23% down. Measured off the
+   art itself — if you swap professor-pearl.png, re-check HAND in config.js. */
+.hand-note {
+  position: absolute;               /* left/top are set in px by placeHandNote */
+  transform: translate(-50%, -50%) rotate(var(--hand-tilt, -31deg));
+  font-family: "Caveat", "Segoe Script", cursive;
+  font-weight: 700;
+  color: #2f4b8f;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .2s;
+  text-shadow: 0 0 3px rgba(255, 233, 210, .9);
+}
+.hand-note.show { opacity: 1; }
+.hand-note.writing { animation: scribble .85s steps(24, end); }
+@keyframes scribble { from { clip-path: inset(-20% 100% -20% -5%); } to { clip-path: inset(-20% -5% -20% -5%); } }
+.portrait.enter { animation: pop .28s ease-out; }
+@keyframes pop { from { transform: scale(.82) translateY(8px); opacity: 0; } }
+
+/* ---------- textbox ---------- */
+.textbox {
+  flex: 0 0 auto;
+  min-height: 100px;
+  margin: 0 8px 8px;
+  background: var(--paper);
+  border: 3px solid var(--frame);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 2px var(--paper-edge);
+  padding: 12px 14px;
+  font-size: 16px; line-height: 1.5;
+  position: relative;
+  cursor: pointer;
+}
+.textbox { font-family: var(--font-body); }
+.textbox .aside { font-style: italic; color: var(--ink-soft); }
+.next-arrow {
+  position: absolute; right: 10px; bottom: 8px;
+  width: 0; height: 0;
+  border-left: 7px solid transparent; border-right: 7px solid transparent;
+  border-top: 9px solid var(--frame);
+  animation: bob .7s ease-in-out infinite;
+}
+@keyframes bob { 50% { transform: translateY(3px); } }
+
+/* ---------- inputs ---------- */
+.prompt-wrap { padding: 0 8px 10px; }
+.name-input {
+  width: 100%; font-family: var(--font-body); font-size: 18px;
+  padding: 12px; border: 3px solid var(--frame); border-radius: 6px;
+  background: #fff; color: var(--ink); text-align: center;
+}
+.name-input:focus { outline: 3px solid var(--accent-2); outline-offset: 1px; }
+
+.btn {
+  font-family: var(--font); font-size: 16px;
+  padding: 12px 16px; min-height: 48px;
+  background: var(--paper); color: var(--ink);
+  border: 3px solid var(--frame); border-radius: 6px;
+  box-shadow: var(--shadow); cursor: pointer;
+  transition: transform .06s;
+}
+.btn:active { transform: translateY(3px); box-shadow: none; }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.ghost   { background: transparent; border-style: dashed; box-shadow: none; }
+.btn:focus-visible { outline: 3px solid var(--accent-2); outline-offset: 2px; }
+
+.btn-row { display: flex; gap: 8px; padding: 0 8px 10px; }
+.btn-row .btn { flex: 1; }
+
+/* ---------- the crate: a wall of Poké Balls ---------- */
+/* top padding clears the floating "Skip to details" link */
+.picker-bar { display: flex; gap: 6px; padding: 36px 8px 6px; }
+.picker-search {
+  flex: 1; font-family: var(--font); font-size: 15px;
+  padding: 10px 12px; min-height: 44px;
+  border: 3px solid var(--frame); border-radius: 6px;
+  background: #fff; color: var(--ink);
+}
+.picker-search:focus { outline: 3px solid var(--accent-2); outline-offset: 1px; }
+.icon-btn { flex: 0 0 auto; width: 48px; padding: 0; font-size: 18px; }
+
+.ball-grid {
+  flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 6px; padding: 4px 8px 8px;
+  align-content: start;
+}
+.no-hits { grid-column: 1/-1; text-align: center; color: var(--ink-soft); font-size: 13px; padding: 20px; }
+
+.ball {
+  position: relative; aspect-ratio: 1; padding: 0;
+  background: none; border: 3px solid transparent; border-radius: 8px;
+  cursor: pointer; display: grid; place-items: center;
+  transition: transform .12s, border-color .12s;
+}
+.ball:hover, .ball:focus-visible { transform: translateY(-3px); outline: none; }
+.ball.focused { border-color: var(--accent-2); background: rgba(63,111,209,.10); }
+
+/* the closed ball, drawn in CSS so there's no extra request per cell */
+.ball-art {
+  width: 72%; aspect-ratio: 1; border-radius: 50%;
+  background:
+    linear-gradient(180deg, var(--accent) 0 46%, #2b2f3a 46% 54%, var(--paper) 54% 100%);
+  border: 2px solid var(--frame);
+  box-shadow: inset -3px -4px 0 rgba(0,0,0,.18);
+  position: relative;
+  transition: transform .18s, opacity .18s;
+}
+.ball-art::after {
+  content: ""; position: absolute; left: 50%; top: 50%;
+  width: 30%; aspect-ratio: 1; transform: translate(-50%, -50%);
+  background: var(--paper); border: 2px solid var(--frame); border-radius: 50%;
+}
+.ball.open .ball-art { transform: scale(.2); opacity: 0; position: absolute; }
+.ball-mon { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; animation: pop .22s ease-out; }
+
+.pick-info { min-height: 92px; cursor: default; font-size: 14px; }
+.pick-info strong { font-size: 15px; }
+.pick-info small { display: block; margin-top: 6px; color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
+.type-chip {
+  font-size: 10px; padding: 2px 6px; border-radius: 10px; margin-left: 4px;
+  color: #fff; text-transform: uppercase; letter-spacing: .5px; display: inline-block;
+}
+.tag-legendary {
+  font-size: 10px; padding: 2px 6px; border-radius: 10px; margin-left: 2px;
+  background: var(--gold); color: var(--frame); text-transform: uppercase; letter-spacing: .5px;
+}
+
+/* ---------- MISSINGNO. ---------- */
+.ball.glitch .ball-mon { image-rendering: pixelated; animation: jitter .18s steps(2) infinite; }
+@keyframes jitter { 50% { transform: translate(1px, -1px) scaleX(1.06); } }
+.glitch-text { letter-spacing: 1px; text-shadow: 1px 0 rgba(217,79,79,.8), -1px 0 rgba(63,111,209,.8); }
+#screen.glitching { animation: screenglitch .09s steps(2) infinite; }
+#screen.glitching::after {
+  content: ""; position: absolute; inset: 0; z-index: 30; pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(43,47,58,.85) 0 3px, transparent 3px 7px),
+    repeating-linear-gradient(90deg, rgba(217,79,79,.35) 0 11px, rgba(63,111,209,.35) 11px 19px);
+  mix-blend-mode: multiply;
+}
+@keyframes screenglitch {
+  0%   { transform: translate(0, 0); filter: none; }
+  25%  { transform: translate(-3px, 1px); filter: invert(1) hue-rotate(90deg); }
+  50%  { transform: translate(2px, -2px); }
+  75%  { transform: translate(-1px, 2px); filter: invert(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #screen.glitching, .ball.glitch .ball-mon { animation: none; }
+}
+
+/* ---------- battle ----------
+   Laid out diagonally and absolutely, the way the games do it: foe top-right,
+   you bottom-left. That's what lets the sprites be big — stacked in a flex
+   column they can never be taller than half the stage, which is why they
+   looked like postage stamps.                                              */
+#scene-battle .stage {
+  display: block; position: relative; padding: 0;
+  background: linear-gradient(180deg, #cfe9f7 0%, #eaf4de 55%, #cfe3b8 100%);
+}
+#scene-battle .field-row {
+  position: absolute; left: 8px; right: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+#scene-battle .field-row.foe  { top: 6px;    justify-content: space-between; }
+#scene-battle .field-row.mine { bottom: 6px; justify-content: space-between; flex-direction: row-reverse; }
+
+/* Sprites keep their original 96x96 canvas, so every species is framed the
+   same way and sits at its true relative size. That canvas is mostly padding,
+   so the BOX is oversized to compensate — which means it reaches under the HP
+   panel. That's deliberate: the sprite sits behind it. */
+.battler {
+  width: 52%; max-width: 190px; aspect-ratio: 1;
+  position: relative; z-index: 1;
+  display: flex; align-items: flex-end; justify-content: center;
+  pointer-events: none;
+}
+/* The canvas is mostly padding, so the picture is scaled up beyond its box
+   rather than the box being grown — growing the box would drag both sprites
+   toward the middle of the screen, where they'd sit on top of each other.
+   Scaling from each sprite's own centre keeps them apart, and the overflow
+   simply passes behind the HP panel. */
+.battler img {
+  width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated;
+  transform: scale(var(--sprite-scale, 1.7));
+  transform-origin: center;
+}
+.battler.hit { animation: shake .3s; }
+@keyframes shake { 25% { transform: translateX(-6px);} 75% { transform: translateX(6px);} }
+.battler.down { animation: drop .5s forwards; }
+@keyframes drop { to { transform: translateY(40px); opacity: 0; } }
+
+.hpbox {
+  background: var(--paper); border: 3px solid var(--frame); border-radius: 6px;
+  padding: 5px 7px; width: 40%; max-width: 168px; box-shadow: var(--shadow);
+  position: relative; z-index: 2;
+}
+.hpbox .row1 { display: flex; justify-content: space-between; font-size: 12px; align-items: center; gap: 6px; }
+.hpbox .lv { color: var(--ink-soft); white-space: nowrap; }
+.hpbox .mon-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hpbox .chips { margin-top: 3px; display: flex; gap: 3px; }
+.hp-track { height: 8px; background: #cfcabb; border: 2px solid var(--frame); border-radius: 5px; margin-top: 5px; overflow: hidden; }
+.hp-fill  { height: 100%; width: 100%; background: var(--hp-hi); transition: width .5s ease, background .3s; }
+.hp-num   { font-size: 11px; text-align: right; margin-top: 2px; color: var(--ink-soft); }
+.status-chip.cnf { background: var(--accent-2); }
+.status-chip {
+  font-size: 9px; padding: 1px 5px; border-radius: 3px; color: #fff; background: var(--ink-soft);
+  text-transform: uppercase;
+}
+
+.menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 0 8px 8px; }
+#scene-battle .textbox { min-height: 64px; }
+.menu-grid .move-btn { min-height: 42px; }
+.move-btn.struggle { grid-column: 1 / -1; }
+.move-btn { text-align: left; padding: 8px 10px; }
+.move-btn .mv-name { font-size: 13px; display: block; line-height: 1.25; }
+.move-btn .mv-meta { font-size: 10px; color: var(--ink-soft); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 3px; line-height: 1.3; }
+.move-btn[disabled] { opacity: .45; cursor: not-allowed; }
+/* the whole menu while a turn plays out: still there, holding its space, but dead */
+.menu-grid.busy { pointer-events: none; }
+.menu-grid.busy .move-btn { opacity: .4; }
+.eff-tag { font-weight: bold; }
+.eff-super { color: #2e8b45; }
+.eff-weak  { color: #b0483f; }
+
+/* ---------- details card ---------- */
+#scene-details .stage { align-items: flex-start; overflow-y: auto; padding-bottom: 28px; -webkit-overflow-scrolling: touch; }
+.details-card {
+  width: 100%; background: var(--paper); border: 3px solid var(--frame);
+  border-radius: 8px; padding: 13px; box-shadow: var(--shadow);
+}
+.details-card h2 { margin: 0 0 8px; font-size: 18px; color: var(--accent); line-height: 1.2; }
+.details-card .kicker { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 10px; }
+.detail-row { display: flex; gap: 10px; padding: 6px 0; border-top: 2px dotted var(--paper-edge); font-size: 13px; align-items: baseline; }
+.detail-row .k { flex: 0 0 74px; color: var(--ink-soft); font-size: 12px; text-transform: uppercase; }
+.detail-row .v { flex: 1; }
+.detail-row .v small { display: block; color: var(--ink-soft); font-size: 10px; margin-top: 2px; line-height: 1.45; }
+
+/* the card scrolls; the action row reads as a footer sitting on top of it */
+#scene-details #details-buttons {
+  background: var(--paper);
+  box-shadow: 0 -12px 14px -8px rgba(0,0,0,.22);
+  padding-top: 10px;
+}
+
+/* ---------- trainer card: editable rows ---------- */
+.card-split {
+  margin: 11px 0 2px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--ink-soft); border-top: 3px double var(--paper-edge); padding-top: 10px;
+}
+.detail-row .v .empty { color: var(--ink-soft); font-style: italic; }
+.mon-inline { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
+.mon-inline img { image-rendering: pixelated; width: 38px; height: 38px; object-fit: contain; margin: -6px 0; }
+.edit-btn {
+  font-family: var(--font); font-size: 12px; line-height: 1;
+  min-width: 30px; min-height: 30px; padding: 4px 7px; margin-left: 4px;
+  background: var(--paper); color: var(--ink-soft);
+  border: 2px solid var(--paper-edge); border-radius: 5px; cursor: pointer;
+  vertical-align: middle;
+}
+.edit-btn:hover, .edit-btn:focus-visible { color: var(--ink); border-color: var(--frame); outline: none; }
+.card-hint { font-family: var(--font-body); font-size: 11px; color: var(--ink-soft); margin: 12px 0 0; line-height: 1.5; }
+.field-edit { text-align: left; margin-top: 8px; resize: vertical; }
+textarea.field-edit { min-height: 92px; line-height: 1.5; font-size: 15px; }
+.saved-link {
+  margin: 12px 0 0; padding: 10px; font-size: 11px; line-height: 1.6;
+  background: rgba(63,111,209,.08); border: 2px dashed var(--accent-2); border-radius: 6px;
+  color: var(--ink-soft);
+}
+.saved-warn {
+  font-family: var(--font-body);
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border: 2px solid var(--hp-lo, #b0483f);
+  border-radius: 4px;
+  background: rgba(176, 72, 63, .08);
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.saved-link { font-family: var(--font-body); }
+.saved-link code { display: block; margin-top: 5px; word-break: break-all; color: var(--ink); font-size: 10px; }
+
+/* ---------- misc ---------- */
+.skip-link {
+  position: absolute; top: 6px; right: 8px; z-index: 5;
+  font-size: 11px; color: var(--ink-soft); background: rgba(246,244,236,.9);
+  border: 2px solid var(--paper-edge); border-radius: 4px;
+  padding: 4px 7px; cursor: pointer; font-family: var(--font);
+}
+.skip-link:hover { color: var(--ink); border-color: var(--frame); }
+
+.mute-btn {
+  position: absolute; top: 6px; left: 8px; z-index: 5;
+  width: 30px; height: 30px; padding: 0;
+  font-family: var(--font); font-size: 14px; line-height: 1;
+  color: var(--ink-soft); background: rgba(246,244,236,.9);
+  border: 2px solid var(--paper-edge); border-radius: 4px; cursor: pointer;
+}
+.mute-btn:hover, .mute-btn:focus-visible { color: var(--ink); border-color: var(--frame); outline: none; }
+.mute-btn.off { color: #b0483f; text-decoration: line-through; }
+
+.toast {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+  background: var(--frame); color: #fff; font-size: 12px;
+  padding: 8px 14px; border-radius: 6px; z-index: 20; opacity: 0;
+  transition: opacity .25s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* short screens (SE-sized phones, landscape-ish): buy back a few pixels */
+@media (max-height: 700px) {
+  #scene-battle .textbox { min-height: 60px; font-size: 14px; }
+  .menu-grid .move-btn { min-height: 42px; }
+  .textbox { min-height: 100px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+@media (max-width: 380px) {
+  .textbox { font-size: 14px; min-height: 104px; }
+  .move-btn .mv-name { font-size: 12px; }
+}
+
+/* ---------- phones: give the game the whole screen ----------
+   The plastic frame is charming on a desktop, where there's room to spare.
+   On a phone it was spending ~58px of width and a fifth of the height on
+   decoration: body padding + device padding + screen border, and then
+   aspect-ratio/max-height capping the picture well short of the glass.
+   Below 560px the frame gets out of the way completely and the screen
+   takes the viewport. Nothing above this block changes.                  */
+@media (max-width: 560px) {
+  body { padding: 0; align-items: stretch; }
+  #device {
+    max-width: none;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  #screen {
+    aspect-ratio: auto;
+    height: 100svh;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+  /* keep the corner buttons clear of a notch / rounded corner */
+  .skip-link { top: calc(6px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); }
+  .mute-btn  { top: calc(6px + env(safe-area-inset-top)); left:  calc(8px + env(safe-area-inset-left)); }
+  .toast     { bottom: calc(14px + env(safe-area-inset-bottom)); }
+}
+
+/* ---------- the invite, opened ----------
+   Pearl says "open it", so something has to open. It carries only the three
+   things a guest needs before being asked who they're bringing — date, time,
+   theme — and every value is read from PARTY, so it can never disagree with
+   the trainer card further on.                                            */
+.invite-veil {
+  position: absolute; inset: 0; z-index: 30;
+  background: rgba(10, 14, 22, .72);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 20px;
+  cursor: pointer;
+}
+.invite-veil[hidden] { display: none; }
+.invite-letter {
+  width: 100%;
+  background: var(--paper);
+  border: 4px solid var(--frame);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 3px var(--paper-edge), 0 12px 0 rgba(0,0,0,.35);
+  padding: 22px 20px;
+  text-align: center;
+  animation: invite-in .22s ease-out;
+}
+@keyframes invite-in { from { transform: scale(.9); opacity: 0; } }
+.invite-letter .kick { font-size: 12px; letter-spacing: 4px; color: var(--ink-soft); }
+.invite-letter h2 {
+  font-size: 23px; line-height: 1.25; margin: 8px 0 14px;
+  color: var(--accent); text-transform: uppercase;
+}
+.invite-letter .row {
+  font-family: var(--font-body); font-size: 16px; color: var(--ink);
+  margin: 7px 0; line-height: 1.4;
+}
+.invite-letter .rule { height: 3px; background: var(--paper-edge); margin: 14px 0; }
+.invite-letter .theme {
+  font-family: var(--font-body); font-size: 13px; color: var(--ink-soft); line-height: 1.45;
+}
+/* sits under the letter rather than pinned to the bottom of the screen,
+   where it landed on top of the dialogue box */
+.invite-tap {
+  margin-top: 18px;
+  text-align: center; font-size: 12px; letter-spacing: 2px; color: #dfe7f2;
+  animation: blink 1.1s steps(1) infinite;
+}

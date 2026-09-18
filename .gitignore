@@ -1,0 +1,18 @@
+# Generated copy used for drag-and-drop deploys. Every file in here already
+# exists one directory up — committing it means every change lands twice and
+# the two copies drift apart.
+_deploy/
+
+# Spent archives and scratch
+_to_delete/
+*.zip
+
+# Local backup of config.js. Keep it on disk, out of the repo.
+js/config.js.bak
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~

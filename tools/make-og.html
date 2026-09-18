@@ -1,0 +1,44 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Pixelify Sans";src:url("fonts/PixelifySans.ttf");font-weight:100 900;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{margin:0}
+#og{width:1200px;height:630px;position:relative;overflow:hidden;font-family:"Pixelify Sans",monospace;-webkit-font-smoothing:none}
+canvas{position:absolute;inset:0;width:1200px;height:630px;image-rendering:pixelated}
+.stack{position:absolute;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:24px}
+.logo{width:520px;filter:drop-shadow(0 7px 0 rgba(0,0,0,.28))}
+.ed{font-size:27px;letter-spacing:7px;color:#fff;text-shadow:3px 3px 0 rgba(20,26,40,.8)}
+.ps{font-size:38px;letter-spacing:6px;color:#22351f;text-shadow:3px 3px 0 rgba(255,255,255,.55)}
+</style></head><body>
+<div id="og">
+  <canvas id="c" width="200" height="105"></canvas>
+  <div class="stack" style="top:88px"><img class="logo" src="sprites/logo.png">
+    <div class="ed">SPECIAL 30TH EDITION</div></div>
+  <div class="stack" style="top:470px"><div class="ps">▶ PRESS START</div></div>
+</div>
+<script>
+let _s=64; const rnd=()=>{_s=(_s*1103515245+12345)&0x7fffffff;return _s/0x7fffffff;};
+const px=(x,y,w,h,c,ctx)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h);};
+function dither(ctx,x,y,w,h,c){ctx.fillStyle=c;
+  for(let j=0;j<h;j++)for(let i=0;i<w;i++) if(((x+i)+(y+j))%2===0) ctx.fillRect(x+i,y+j,1,1);}
+function skyBands(ctx,cols,top,bot){const n=cols.length,span=(bot-top)/n;
+  cols.forEach((c,i)=>{const y=Math.round(top+i*span),h=Math.round(span)+1;
+    px(0,y,200,h,c,ctx); if(i>0) dither(ctx,0,y,200,3,cols[i-1]);});}
+function cloud(ctx,x,y,s,light,shade){
+  [[2,6],[0,10],[1,9],[3,5]].forEach((r,i)=>px(x+r[0]*s,y+i*s,r[1]*s,s,i>2?shade:light,ctx));}
+function sea(ctx,y,h,c){
+  px(0,y,200,h,c.mid,ctx); px(0,y,200,1,"#f4fbff",ctx); dither(ctx,0,y+1,200,4,c.light);
+  for(let i=0;i<26;i++){const x=Math.floor(rnd()*198),yy=y+3+Math.floor(rnd()*(h-6)); px(x,yy,2,1,c.light,ctx);}
+  dither(ctx,0,y+h-5,200,5,c.dark); px(0,y+h-1,200,1,c.dark,ctx);}
+function grass(ctx,gy,c1,c2,c3){
+  px(0,gy,200,105-gy,c1,ctx);
+  for(let x=0;x<200;x++){ if(rnd()<0.36) px(x,gy-1,1,1,c1,ctx); }
+  dither(ctx,0,gy+3,200,5,c2); px(0,gy+14,200,105-(gy+14),c2,ctx); dither(ctx,0,gy+12,200,5,c1);
+  for(let i=0;i<70;i++){const x=Math.floor(rnd()*199),y=gy+16+Math.floor(rnd()*(105-gy-18)); px(x,y,2,1,c3,ctx);}}
+const ctx=document.getElementById("c").getContext("2d");
+const BLUE=["#4fa8e8","#63b6ef","#7ac4f4","#93d2f8","#aadefb","#c2e9fd"];
+skyBands(ctx,BLUE,0,56);
+[[10,7,3],[58,15,2],[112,5,3],[158,17,2]].forEach(c=>cloud(ctx,c[0],c[1],c[2],"#fff","#dceaf7"));
+sea(ctx,56,15,{light:"#8fc9f6",mid:"#2f6fd0",dark:"#1c4a96"});
+grass(ctx,71,"#8ed77c","#6cbb60","#57a44e");
+</script></body></html>

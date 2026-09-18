@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A Wild Invitation Appeared!</title>
+<meta name="description" content="You have been challenged. Beat the rival to receive the party details.">
+<!-- og:image MUST stay an absolute URL — a relative path is the usual reason
+     a link preview comes up blank in iMessage. If the site ever moves to a
+     custom domain, these three URLs are what change. -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://pearl42.github.io/pearlkemon/">
+<meta property="og:title" content="A Wild Invitation Appeared!">
+<meta property="og:description" content="Professor Pearl needs a word with you.">
+<meta property="og:image" content="https://pearl42.github.io/pearlkemon/sprites/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="PearlKemon — Special 30th Edition. Press Start.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="A Wild Invitation Appeared!">
+<meta name="twitter:description" content="Professor Pearl needs a word with you.">
+<meta name="twitter:image" content="https://pearl42.github.io/pearlkemon/sprites/og.png">
+<link rel="icon" type="image/png" sizes="64x64" href="sprites/favicon.png">
+<link rel="apple-touch-icon" href="sprites/apple-touch-icon.png">
+<meta name="theme-color" content="#14171f">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Varela+Round&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="device">
+  <div id="screen">
+
+    <button class="skip-link" id="skip-link" hidden>Skip to party info ▸</button>
+    <button class="mute-btn" id="mute-btn" hidden aria-pressed="false" aria-label="Mute sound">♪</button>
+
+    <!-- TITLE -->
+    <section class="scene active" id="scene-title">
+      <img id="title-logo" alt="" hidden>
+      <h1 id="title-text">A WILD<br>INVITATION<br>APPEARED!</h1>
+      <p class="sub" id="title-sub"></p>
+      <p class="press-start" id="press-start">▶ PRESS START</p>
+    </section>
+
+    <!-- DIALOGUE (reused by every talking scene) -->
+    <section class="scene" id="scene-talk">
+      <div class="stage">
+        <div class="portrait-wrap" id="portrait-wrap">
+          <img class="portrait" id="talk-portrait" alt="">
+          <span class="hand-note" id="hand-note" aria-hidden="true"></span>
+        </div>
+      </div>
+      <div class="textbox" id="talk-box" role="button" tabindex="0" aria-live="polite">
+        <span id="talk-text"></span>
+        <span class="next-arrow" id="talk-arrow" hidden></span>
+      </div>
+      <div class="prompt-wrap" id="talk-input-wrap" hidden>
+        <input class="name-input" id="talk-input" maxlength="14" autocomplete="off" autocapitalize="words" spellcheck="false">
+      </div>
+      <div class="btn-row" id="talk-buttons" hidden></div>
+    </section>
+
+    <!-- THE CRATE OF POKé BALLS -->
+    <section class="scene" id="scene-starter">
+      <div class="picker-bar">
+        <input class="picker-search" id="picker-search" type="search" placeholder="Search Pokémon…"
+               autocomplete="off" spellcheck="false" aria-label="Search for a Pokémon by name or type">
+        <button class="btn icon-btn" id="picker-random" type="button" title="Surprise me" aria-label="Surprise me">🎲</button>
+      </div>
+      <div class="ball-grid" id="ball-grid" role="listbox" aria-label="Choose a Pokémon"></div>
+      <div class="textbox pick-info" id="starter-box"><span id="starter-text"></span></div>
+      <div class="btn-row" id="starter-buttons" hidden></div>
+    </section>
+
+    <!-- BATTLE -->
+    <section class="scene" id="scene-battle">
+      <div class="stage">
+        <div class="field-row foe">
+          <div class="hpbox" id="hp-foe"></div>
+          <div class="battler" id="sprite-foe"><img alt=""></div>
+        </div>
+        <div class="field-row mine">
+          <div class="hpbox" id="hp-mine"></div>
+          <div class="battler" id="sprite-mine"><img alt=""></div>
+        </div>
+      </div>
+      <div class="textbox" id="battle-box" role="button" tabindex="0" aria-live="polite">
+        <span id="battle-text"></span>
+        <span class="next-arrow" id="battle-arrow" hidden></span>
+      </div>
+      <div class="menu-grid" id="battle-menu" hidden></div>
+    </section>
+
+    <!-- PARTY DETAILS -->
+    <section class="scene" id="scene-details">
+      <div class="stage">
+        <div class="details-card" id="details-card"></div>
+      </div>
+      <div class="btn-row" id="details-buttons"></div>
+    </section>
+
+    <!-- The invite itself, opened on Pearl's say-so right after the battle.
+         Sits over whatever scene is showing; one tap dismisses it. -->
+    <div class="invite-veil" id="invite-pop" hidden role="dialog" aria-modal="true" aria-label="Party invitation">
+      <div class="invite-letter" id="invite-letter">
+        <div class="kick" id="invite-kick"></div>
+        <h2 id="invite-title"></h2>
+        <div class="row" id="invite-date"></div>
+        <div class="row" id="invite-time"></div>
+        <div class="rule"></div>
+        <div class="theme" id="invite-theme"></div>
+      </div>
+      <div class="invite-tap" id="invite-tap"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script src="data/dex-data.js"></script>
+<script src="data/sprite-fit.js"></script>
+<script src="js/config.js"></script>
+<script src="js/dex.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/rsvp.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
