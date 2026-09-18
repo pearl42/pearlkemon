@@ -10,14 +10,14 @@
 const PARTY = {
   hostName:  "Pearl",
   occasion:  "30th Birthday",
-  dateLong:  "Friday, November 21st",
+  dateLong:  "Saturday, November 21st",
   time:      "6:00 PM",
   address:   "House with the penguin mailbox",
   addressNote: "",
   mapUrl:    "",                       // optional Google Maps link
   theme:     "Back to the VERY FIRST party theme from my 20th: Pokémon.",
   themeNote: "Trainer, gym leader, rival, Team Rocket grunt, or a literal Pokémon. Effort will be rewarded.",
-  food:      "You will be fed!",
+  food:      "You will be well-fed!",
   foodNote:  "Tell me below if you have any dietary restrictions I should plan around/label for.",
   rsvpBy:    "",
   contact:   "Professor Pearl"
@@ -83,7 +83,9 @@ const UI = {
   // The invite that opens after the battle. The date, time and theme on it
   // come straight from PARTY above, so they can't drift from the card.
   inviteKicker: "PARTY INVITE",
-  inviteTap:    "\u25bc TAP TO CONTINUE"
+  inviteTap:    "\u25bc TAP TO CONTINUE",
+  // On the card once an RSVP is in, so it's clear they're free to go.
+  backToTitle:  "\u25c2 Back to title screen"
 };
 
 /* Where Professor Pearl's open palm sits, as a percentage of her artwork —

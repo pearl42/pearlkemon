@@ -122,6 +122,10 @@ body {
    art itself — if you swap professor-pearl.png, re-check HAND in config.js. */
 .hand-note {
   position: absolute;               /* left/top are set in px by placeHandNote */
+  /* Parked off-screen until placeHandNote gives it real coordinates. Without
+     this an unplaced note falls back to its static position and flashes in
+     the middle of the picture. */
+  left: -9999px; top: -9999px;
   transform: translate(-50%, -50%) rotate(var(--hand-tilt, -31deg));
   font-family: "Caveat", "Segoe Script", cursive;
   font-weight: 700;

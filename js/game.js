@@ -196,33 +196,88 @@ function setSpeaker(rawLine) {
    She writes it down so she won't forget again, and it stays there for the
    rest of the visit. Positioned against her artwork rather than the screen,
    so it lands on her palm at every size. */
+/* Returns true only if the note actually got placed. Callers use that to
+   decide whether it's safe to make it visible: a note that is shown before
+   it has coordinates falls back to its static position and flashes in the
+   middle of the screen. */
 function placeHandNote() {
   const wrap = $("portrait-wrap"), note = $("hand-note"), img = $("talk-portrait");
-  if (!wrap || !note || !img) return;
-  // measurements are in the wrapper's own coordinates, so don't re-measure
-  // while it's scaled up
-  if (wrap.classList.contains("zoom-hand")) return;
-  const ib = img.getBoundingClientRect(), wb = wrap.getBoundingClientRect();
-  if (!ib.width || !img.complete || !img.naturalWidth) return;
-  // The wrapper can be taller than the artwork inside it, so measure against
-  // the IMAGE box. HAND.x / HAND.y are percentages of the artwork itself.
+  if (!wrap || !note || !img) return false;
+  if (!img.complete || !img.naturalWidth) return false;
+
+  // offsetWidth/Height/Left/Top are LAYOUT measurements: unlike
+  // getBoundingClientRect they ignore CSS transforms, so neither the pop-in
+  // animation nor the zoom-hand push-in can distort them. That's what makes
+  // it safe to re-measure whenever the layout might have moved — which is
+  // the actual fix, because the stage resizes when the input prompt appears
+  // and the old pixel offsets were left pointing at thin air.
+  const iw = img.offsetWidth, ih = img.offsetHeight;
+  if (!iw || !ih) return false;
+  // img sits inside .portrait-wrap, which is position:relative, so its
+  // offsets are already in the wrapper's coordinates.
+  const ox = img.offsetParent === wrap ? img.offsetLeft : 0;
+  const oy = img.offsetParent === wrap ? img.offsetTop  : 0;
+
   const H = currentHand();
   const fx = parseFloat(H.x) / 100, fy = parseFloat(H.y) / 100;
-  note.style.left = (ib.left - wb.left + ib.width * fx) + "px";
-  note.style.top  = (ib.top  - wb.top  + ib.height * fy) + "px";
+  note.style.left = (ox + iw * fx) + "px";
+  note.style.top  = (oy + ih * fy) + "px";
   note.style.setProperty("--hand-tilt", H.tilt);
 
   // Shrink to fit the palm — a 14-character name is as welcome as a 4-letter one.
-  let size = ib.width * (H.size || 0.105);
+  let size = iw * (H.size || 0.105);
   note.style.fontSize = size + "px";
-  const allowed = ib.width * (H.maxWidth || 0.105);
+  const allowed = iw * (H.maxWidth || 0.105);
   // scrollWidth is the unrotated layout width — getBoundingClientRect would
   // return the tilted bounding box and over-shrink the text.
   const actual = note.scrollWidth;
   if (actual > allowed) size = Math.max(6, size * (allowed / actual));
   note.style.fontSize = size + "px";
+  return true;
+}
+
+/* The stage changes size when the input prompt opens, when a button row
+   appears, and when the phone is rotated. Any of those moves the artwork, so
+   the writing has to be re-measured against it. */
+function repositionHandNote() {
+  const note = $("hand-note");
+  if (note && note.classList.contains("show")) placeHandNote();
+}
+window.addEventListener("resize", repositionHandNote);
+window.addEventListener("orientationchange", repositionHandNote);
+
+/* Watch the WRAPPER, not just the picture. When the input prompt opens the
+   stage gets shorter, and because the artwork is bottom-aligned it slides up
+   without changing size at all — its height stays 507px while its top moves
+   61px. A ResizeObserver on the image sees nothing there; one on the wrapper
+   sees the height change and fires. That was the writing halfway down her arm
+   on the "who's coming with you?" screen.
+
+   Safe from feedback loops: this only moves the note, which cannot resize
+   either element. */
+if (typeof ResizeObserver !== "undefined") {
+  const ro = new ResizeObserver(repositionHandNote);
+  [$("portrait-wrap"), $("talk-portrait")].forEach(el => el && ro.observe(el));
 }
 let handPlacedOn = "";      // which artwork the note was last measured against
+let handWaiting = false;
+
+/* The artwork wasn't ready to be measured against. Keep the writing hidden
+   and try again as it loads, rather than showing it somewhere wrong. */
+function showHandNoteWhenReady() {
+  if (handWaiting) return;
+  handWaiting = true;
+  const note = $("hand-note"), img = $("talk-portrait");
+  let tries = 0;
+  const attempt = () => {
+    if (!state.handNote || currentSpeaker !== "Professor Pearl") { handWaiting = false; return; }
+    if (placeHandNote()) { note.classList.add("show"); handWaiting = false; return; }
+    if (++tries > 40) { handWaiting = false; return; }   // ~4s, then give up quietly
+    setTimeout(attempt, 100);
+  };
+  if (img && img.decode) img.decode().then(attempt).catch(() => {});
+  setTimeout(attempt, 60);
+}
 
 function updateHandNote(writing) {
   const note = $("hand-note");
@@ -231,16 +286,22 @@ function updateHandNote(writing) {
   if (!state.handNote || !onPearl) { note.classList.remove("show", "writing"); return; }
   note.textContent = state.handNote;
 
-  // Only measure when there is something new to measure against. Re-placing on
-  // every line meant measuring mid "pop" animation, which is what nudged the
-  // writing off her palm on the screen after she wrote it.
-  const art = pearlOutfit;
-  if (writing || art !== handPlacedOn) {
-    handPlacedOn = art;
-    placeHandNote();
-    requestAnimationFrame(placeHandNote);   // again once layout has settled
+  // Re-measure every time. This used to be once per artwork, to dodge the
+  // pop-in animation distorting getBoundingClientRect — but placeHandNote no
+  // longer reads transformed boxes, so measuring often is free, and stale
+  // offsets were what sent the writing wandering when the stage resized.
+  //
+  // Crucially: only reveal it once it HAS a place. Showing first and
+  // measuring after is what made it flash, sometimes mid-screen, on the
+  // frames where the artwork hadn't finished loading or laying out.
+  handPlacedOn = pearlOutfit;
+  if (placeHandNote()) {
+    note.classList.add("show");
+    requestAnimationFrame(placeHandNote);    // refine once layout settles
+  } else {
+    note.classList.remove("show");
+    showHandNoteWhenReady();
   }
-  note.classList.add("show");
   if (writing) {
     note.classList.remove("writing"); void note.offsetWidth; note.classList.add("writing");
     pushInOnHand();
@@ -292,6 +353,7 @@ function hidePrompt() {
   $("talk-input-wrap").hidden = true;
   $("talk-buttons").hidden = true;
   $("talk-buttons").innerHTML = "";
+  repositionHandNote();       // the stage just grew back
 }
 
 /* One listener on the reused input, forever. Re-registering per prompt is
@@ -308,6 +370,7 @@ function ask(promptLine, placeholder, onSubmit, opts = {}) {
     const token = chainToken;
     const wrap = $("talk-input-wrap"), input = $("talk-input"), row = $("talk-buttons");
     wrap.hidden = false;
+    repositionHandNote();       // the stage just shrank to make room
     input.value = opts.value || "";
     input.placeholder = placeholder || "";
     input.maxLength = opts.maxLength || 14;
@@ -330,6 +393,9 @@ function ask(promptLine, placeholder, onSubmit, opts = {}) {
     go.className = "btn primary"; go.textContent = "OK";
     on(go, "click", () => { go.disabled = true; Sound.play("select"); submit(); });
     row.appendChild(go);
+    // The stage shrinks TWICE here — once for the input, once for this button
+    // row — and each one slides the artwork up. Re-place after the second.
+    repositionHandNote();
   });
 }
 
@@ -351,6 +417,7 @@ function choose(lines, options, portrait) {
       });
       row.appendChild(b);
     });
+    repositionHandNote();        // this row resizes the stage too
   }, portrait);
 }
 
@@ -380,11 +447,19 @@ function wearTheCostume() {
   // The costume art is a different shape, so the writing on her palm has to be
   // re-placed — but only once the new picture has actually been laid out.
   // Measuring too early pins it to the old image's box.
-  // Re-measure directly rather than through updateHandNote: that function only
-  // places once per artwork, and an early call would claim the slot with the
-  // old picture's geometry and lock the corrected ones out.
+  //
+  // Until then the note is hidden rather than left sitting at coordinates
+  // that belong to the previous artwork. It fades out and back in over the
+  // costume change, which reads as part of the gag.
   handPlacedOn = "karp";
-  const replace = () => { if (state.handNote) placeHandNote(); };
+  const note = $("hand-note");
+  const wasShown = note && note.classList.contains("show");
+  if (wasShown) note.classList.remove("show");
+  const replace = () => {
+    if (!state.handNote) return;
+    placeHandNote();
+    if (wasShown && note) note.classList.add("show");
+  };
   if (img.decode) img.decode().then(replace).catch(replace);
   setTimeout(replace, 120);
   setTimeout(replace, 400);
@@ -449,9 +524,16 @@ function renderBalls(list) {
     ball.setAttribute("role", "option");
     ball.setAttribute("aria-label", `Poké Ball ${s.id}. Open to see what's inside.`);
     ball.innerHTML = `<span class="ball-art" aria-hidden="true"></span><img class="ball-mon" alt="" hidden>`;
-    on(ball, "pointerenter", () => { if (window.matchMedia("(hover:hover)").matches) reveal(s, ball); });
+    // No hover handler. Revealing on hover meant that moving the mouse from
+    // the ball you'd clicked over to the Choose button dragged the selection
+    // along with it — every ball the pointer crossed took over the panel, so
+    // anything not on the edge of the grid was impossible to choose.
     on(ball, "focus", () => reveal(s, ball));
-    on(ball, "click", () => ball.classList.contains("open") ? choosePokemon(s.id) : reveal(s, ball));
+    // Tapping a ball only ever opens it and shows what's inside. It used to
+    // pick the Pokemon if the ball was already open, which meant flicking
+    // back and forth between two you'd revealed chose the second one for you.
+    // Choosing happens on the Choose button, and nowhere else.
+    on(ball, "click", () => reveal(s, ball));
     frag.appendChild(ball);
   });
   grid.appendChild(frag);
@@ -465,7 +547,7 @@ function reveal(s, ball) {
     setSprite(img, spriteFront(s.id), s.name, TYPE_COLORS[s.types[0]]);
     img.hidden = false;
     ball.classList.add("open");
-    ball.setAttribute("aria-label", `${s.name}, ${s.types.join(" and ")} type. Choose.`);
+    ball.setAttribute("aria-label", `${s.name}, ${s.types.join(" and ")} type.`);
   }
   document.querySelectorAll(".ball.focused").forEach(b => b.classList.remove("focused"));
   ball.classList.add("focused");
@@ -946,6 +1028,18 @@ function renderCard() {
     on(flip, "click", () => sendRSVP(false));
     row.append(save, flip);
   }
+
+  // Once an answer is in, the card is the end of the road — so offer a way
+  // off it. Saving used to leave you staring at a screen with nothing left
+  // to do and no sign you were free to go.
+  if (state.revision > 0) {
+    const home = document.createElement("button");
+    home.className = "btn ghost";
+    home.dataset.home = "1";
+    home.textContent = UI.backToTitle || "◂ Back to title screen";
+    on(home, "click", backToTitle);
+    row.appendChild(home);
+  }
 }
 
 /* Inline editors, rendered into the card itself. */
@@ -1006,7 +1100,7 @@ async function sendRSVP(attending) {
   state.revision = (state.revision || 0) + 1;
   const first = state.revision === 1;
 
-  $("details-buttons").innerHTML = `<button class="btn" disabled>Sending…</button>`;
+  $("details-buttons").innerHTML = `<button class="btn" disabled>Sending… (this may take a few seconds)</button>`;
   const res = await submitRSVP(state);
   sending = false;
   if (res.ok) Sound.play("save");
@@ -1016,7 +1110,7 @@ async function sendRSVP(attending) {
     say(attending ? SCRIPT.accepted : SCRIPT.declined, () => showSaved(res), PEARL());
   } else {
     showSaved(res);
-    if (res.ok) toast(attending ? "Saved. See you on the 21st." : "Saved.");
+    if (res.ok) toast(attending ? "Saved. See you on the 21st!" : "Saved. You will be missed!");
   }
 }
 
@@ -1042,6 +1136,26 @@ function showSaved(res) {
   p.innerHTML = `${esc(UI.savedLink)}<br><code id="saved-url"></code>`;
   card.appendChild(p);
   $("saved-url").textContent = editLink();
+}
+
+/* ---------- back to the start ----------
+   Saving an RSVP leaves you sitting on the card with nothing obviously left
+   to do, so there's a way back to the title screen. It doesn't reload — it
+   winds the story down and re-arms PRESS START, which then recognises the
+   saved RSVP and offers the card straight back. */
+let armTitle = null;                  // boot() fills this in
+
+function backToTitle() {
+  if (typing) { clearInterval(typing); typing = null; }
+  chainToken++;                       // orphan any dialogue still in flight
+  talkEnd = null; battleAdvance = null;   // and any battle step waiting on a tap
+  hidePrompt();
+  const pop = $("invite-pop"); if (pop) pop.hidden = true;
+  Sound.stopAllLoops();
+  const skip = $("skip-link"); if (skip) { skip.hidden = true; skip.style.display = ""; }
+  $("press-start").textContent = "▶ PRESS START";
+  showScene("scene-title");
+  armTitle && armTitle();
 }
 
 /* ---------- escape hatch ---------- */
@@ -1111,6 +1225,15 @@ function restore(saved) {
   };
   on($("scene-title"), "click", go);
   document.addEventListener("keydown", go);
+
+  // The title screen disarms itself once the story starts. "Back to title"
+  // needs it live again, so hand the rest of the file a way to do that.
+  armTitle = () => {
+    if (!launched) return;                 // already waiting for a tap
+    launched = false;
+    on($("scene-title"), "click", go);
+    document.addEventListener("keydown", go);
+  };
 
   function begin() {
     $("skip-link").hidden = false;
