@@ -14,11 +14,14 @@ const PARTY = {
   time:      "6:00 PM",
   address:   "House with the penguin mailbox",
   addressNote: "",
-  mapUrl:    "",                       // optional Google Maps link
-  theme:     "Back to the VERY FIRST party theme from my 20th: Pokémon.",
-  themeNote: "Trainer, gym leader, rival, Team Rocket grunt, or a literal Pokémon. Effort will be rewarded.",
-  food:      "You will be well-fed!",
-  foodNote:  "Tell me below if you have any dietary restrictions I should plan around/label for.",
+  mapUrl:    "https://maps.app.goo.gl/JQ88x47KNvYBraQa9",                       // optional Google Maps link
+  theme:     "Back to the VERY FIRST party theme: Pokémon.",
+  theme2:     "Pokémon",
+  themeNote: "No prior knowledge required!",
+  attire: "Costumes encouraged! Pokémon, trainer, Team Rocket--the world is your Cloyster",
+  attireNote: "Costumes are a silly little birthday treat for me, not a necessity (and spares will be available at the door :)",
+  food:      "SO MUCH. You will be well-fed!",
+  foodNote:  "Tell me below if you have any dietary restrictions I should plan+label for!",
   rsvpBy:    "",
   contact:   "Professor Pearl"
 };
@@ -75,8 +78,8 @@ const SPRITE_BASE = "sprites/pokemon/";
 const UI = {
   skipLink:    "Skip to party info ▸",
   editHint:    "Anything on this card can be changed. Come back any time.",
-  notePrompt:  "Anything I should know? Dietary business, a threat, your favorite Pokémon.",
-  savedLink:   "Bookmark this link and you can change your answer from any device.",
+  notePrompt:  "Anything I should know? Dietary concerns, late arrival/early departure, your favorite Pokémon that you demand to see represented, etc.",
+  savedLink:   "Bookmark this link and you can change your RSVP from any device. Or, submit a new RSVP under the same name and I'll use the most recent submission!",
   // Shown on the card when the RSVP could not be confirmed as received.
   // {CONTACT} becomes PARTY.contact.
   sendFailed:  "This answer is saved on your device, but it never reached {CONTACT}. Please send her a message so you don't get left off the list.",
@@ -85,13 +88,39 @@ const UI = {
   inviteKicker: "PARTY INVITE",
   inviteTap:    "\u25bc TAP TO CONTINUE",
   // On the card once an RSVP is in, so it's clear they're free to go.
-  backToTitle:  "\u25c2 Back to title screen"
+  backToTitle:  "\u25c2 Back to title screen",
+  // The 1-5 question. knowHint sits under the buttons before anything is
+  // picked; knowConfirm is the button once a level is selected.
+  knowHint:      "Tap a number to see what it means.",
+  knowConfirm:   "That's me \u25b8",
+  knowSkip:      "Leave blank \u25b8",       // plus-one only — theirs is optional
+  knowClassLabel: "Trainer class"
 };
 
 /* Where Professor Pearl's open palm sits, as a percentage of her artwork —
    measured off the art itself, so it holds at every screen size. Re-measure
    if you replace professor-pearl.png. The view pushes in while she writes,
    because the palm is only a tenth of the picture wide.                   */
+/* ---------- HOW MUCH POKéMON DO THEY KNOW? ----------
+   Asked once, before the rival shows up. The number is what gets stored; the
+   class name is looked up from here at render time, so renaming a class never
+   invalidates an answer somebody already gave.
+
+   `blurb` is what they see while deciding — it appears under the buttons as
+   they move across them, so nobody has to guess what a "3" is agreeing to. */
+const KNOW_LEVELS = [
+  { n: 1, cls: "First-time Trainer",
+    blurb: "You mean the children's cartoon?" },
+  { n: 2, cls: "Rookie Trainer",
+    blurb: "I know Pikachu and think I could figure out a Pokémon battle." },
+  { n: 3, cls: "Seasoned Trainer",
+    blurb: "I've battled Pokémon before, but not much/not in a long time." },
+  { n: 4, cls: "Ace Trainer",
+    blurb: "I could name three moves that are super effective on Squirtle." },
+  { n: 5, cls: "Champion",
+    blurb: "Some or all of these terms mean something to me: Nuzlocke, Smogon, STAB, IVs." }
+];
+
 const HAND = {
   x: "10.4%",        // centre of her palm, across the artwork
   y: "23%",          // ...and down it
@@ -214,24 +243,39 @@ const TRAINER_ART = {
    A line starting with "*" renders in italics as a stage direction.    */
 const SCRIPT = {
   intro: [
-    "Ah — there you are. Right on time.",
+    "Ah, there you are. Right on time.",
     "Welcome to the world of Pokémon. My name is PROFESSOR PEARL.",
-    "I have studied these creatures for thirty years. I'm told that makes me an authority.",
-    "*Thirty years. Funny number. Hold onto it.",
-    "But before we go any further — I should know who I'm talking to."
+    "I have studied these creatures for nearly thirty years. I conduct research so we may learn more about Pokémon.",
+    "*You note PROFESSOR PEARL looks really hot and muscular for her age.",
+    "But before we go any further, I should know who I'm talking to."
   ],
   askName: "What's your name, then?",
   afterName: [
-    "{NAME}. A fine name. Suits you.",
+    "{NAME}. A fine name. Suits you."
+  ],
+  /* The 1-5 question happens here, between these two blocks. */
+  askKnow: [
+    "{NAME}, how much do you already know about the world of Pokémon?"
+  ],
+  askKnowPrompt: "Rate your Pokémon knowlege:",
+  /* One line back, keyed to what they picked. 5 gets the wink. */
+  knowReply: {
+    1: "PEARL: Yay for a first-time trainer! I'll include a little extra info as we go, then.",
+    2: "PEARL: You'll pick it right up! I'll help fill in the gaps as we go.",
+    3: "PEARL: It comes back quickly! Like riding a bicycle. Except now's not the time to use that.",
+    4: "PEARL: Enough to get all the jokes but not so much you break my battling logic--perf!",
+    5: "PEARL: Well then I won't insult you by explaining type effectiveness!"
+  },
+  afterKnow: [
     "Now. There's someone else you should meet."
   ],
   rivalIntro: [
     "This is my grandson.",
-    "The two of you have been inseparable since you were small. Thick as thieves. Rivals, even.",
+    "The two of you have been inseparable since you were babies. Thick as thieves. Rivals, even.",
     "His name is... his name is...",
-    "*PROFESSOR PEARL stares into the ether.",
-    "I've forgotten my own grandson's name.",
-    "Pole dancing really scrambles the brain particles. Would you remind me?"
+    "*PROFESSOR PEARL stares into the distance.",
+    "...Erm, what is his name again?",
+    "Pole dancing really scrambles the brain particles."
   ],
   askRival: "What is my grandson's name?",
   afterRival: [
@@ -241,18 +285,34 @@ const SCRIPT = {
   ],
   starterIntro: [
     "Right. Down to business.",
-    "*PROFESSOR PEARL hauls a crate onto the table. It is full of poké balls.",
-    "Thirty years of fieldwork. Take whichever one you like — I've labelled precisely none of them.",
-    "Go on. Have a rummage."
+    "{NAME}, your very own Pokémon legend is about to unfold!",
+    "*PROFESSOR PEARL hauls a crate onto the table using her huge muscles. It is full of poké balls.",
+    "Thirty years of fieldwork. Take whichever one you like--I've labelled none of them.",
+    "Go on, have a rummage!"
   ],
   afterStarter: [
     "{STARTER}! Oh, that's a good one. Bold choice.",
-    "*{RIVAL} has been watching you the entire time.",
-    "*{RIVAL} picks a ball of his own, very deliberately."
+    "*{RIVAL} is hiding his phone screen to conceal a Pokémon Type Effectiveness Chart.",
+    "*{RIVAL} grabs a ball of his own, smirking at you as he does."
+  ],
+  /* Extra lines for guests who said 1 or 2. Purely additive — everybody sees
+     the normal script, these just get folded in at the right moments. Set a
+     block to [] to switch that bit of hand-holding off. */
+  helpTypeChart: [
+    "PEARL: A word, before he starts.",
+    "PEARL: Every Pokémon has a type, and some types beat others. Water puts out fire, fire burns grass, grass soaks up water.",
+    "PEARL: He's picked something whose type is strong against yours. That's what he's so pleased about.",
+    "PEARL: But it's not the whole story! Hit him hard enough and type won't matter.",
+    "PEARL: Now go ahead, knock that smile off his face!"
+  ],
+  helpFirstMenu: [
+    "PEARL: Your moves are listed in the menu under your Pokémon. Each move can be used a certain number of times before it runs out of PP.",
+    "PEARL: You may also see tags like 'SUPER' that tell you how well each move will land.",
+    "PEARL: SUPER means your opponent's Pokémon is weak to that move. RESISTED means it affects them less. Pick one, and we'll see what happens."
   ],
   rivalTaunt: [
-    "{RIVAL}: Funny, this one seems to have a type advantage over you.",
-    "PEARL: {RIVAL}, those are research specimens —",
+    "{RIVAL}: What a coincidence, this Pokémon seems to have a type advantage over yours.",
+    "PEARL: {RIVAL}, those are research specimens—",
     "{RIVAL}: And I'm researching how to make {NAME} my bitch. {NAME}, let's battle. Right now.",
     "*{RIVAL} wants to battle!"
   ],
@@ -262,12 +322,11 @@ const SCRIPT = {
     "{RIVAL}: ...Fine. You won. Enjoy it, it won't happen twice.",
     "*{RIVAL} handed over ₽280 for losing.",
     "PEARL: Well fought, {NAME}. Both of you.",
-    "PEARL: Now — do you remember what I said before about my thirty years of research?",
+    "PEARL: Now, do you remember what I said before about my almost thirty years of research?",
     "PEARL: This battle was for more than just your little heated rivalry.",
     "*PROFESSOR PEARL produced a strange envelope.",
     "*{NAME} received the PARTY INVITE!",
     "*{NAME} put away the PARTY INVITE in the KEY ITEMS POCKET.",
-    "PEARL: You can't sell it, you can't drop it, and there's only the one.",
     "PEARL: Go on. Open it."
   ],
   mercy: [
@@ -287,7 +346,7 @@ const SCRIPT = {
   ],
   defeat: [
     "{RIVAL}: Get up. That was embarrassing for both of us.",
-    "PEARL: Your {STARTER} has been restored to full health. Try again, {NAME}. [[heal]]"
+    "PEARL: Your {STARTER} has been restored to full health. Try one more time, {NAME}. [[heal]]"
   ],
 
   /* After the battle, two separate things happen: the grandson gives the
@@ -298,23 +357,27 @@ const SCRIPT = {
     "PEARL: One more thing.",
     "PEARL: Now. You're not walking into this journey alone, are you?"
   ],
-  askPlusOne: "Who's coming with you on the 21st?",
-  plusOneSolo: "*Leave it blank if you're flying solo.",
+  askPlusOne: "Who might come with you on the 21st?",
+  plusOneSolo: "*Leave it blank if you're planning to fly solo.",
+  askPlusOneKnow: [
+    "PEARL: And {PLUSONE}--how much do they know about Pokémon?"
+  ],
+  askPlusOneKnowPrompt: "{PLUSONE}'s Pokémon knowledge",
   afterPlusOneName: [
     "PEARL: {PLUSONE}. Good. I'll set a place.",
-    "{RIVAL}: Wait. *They* get to come?",
-    "PEARL: Maybe if you were more likeable people would invite you to things.",
-    "PEARL: In fact, put that Pokémon back so that {PLUSONE} can pick their starter from the full set.",
+    "{RIVAL}: Wait. Do I not get to come?",
+    "PEARL: Oh my god, you're still here.",
+    "PEARL: {RIVAL}, put that Pokémon back so that {PLUSONE} can pick their starter.",
     "*{RIVAL} reluctantly returns his partner Pokémon.",
     "PEARL: Go on, let's pick out a starter for {PLUSONE}. The crate's open."
   ],
   afterPlusOne: [
     "*{PLUSONE} chose {PLUSSTARTER}.",
-    "PEARL: Settled. Two trainers, two partners, one night of fun!"
+    "PEARL: Settled. {NAME}, {PLUSONE}, and their partner Pokémon!",
+    "PEARL: Here's your Trainer card--can you help me make sure I got everything right?"
   ],
   soloPath: [
-    "PEARL: Ah — travelling light. Nothing wrong with that.",
-    "PEARL: More cake for you."
+    "PEARL: Ah, travelling light. More cake for you."
   ],
 
   /* The deep cut. Type MISSINGNO. into the crate's search box. */
@@ -334,12 +397,12 @@ const SCRIPT = {
     "PEARL: Can't wait to see you there!"
   ],
   declined: [
-    "PEARL: Ah. A shame — a real one.",
-    "PEARL: The world of Pokémon will still be here. So will I.",
+    "PEARL: Ah, what a shame! You will be so missed!",
+    "PEARL: The world of Pokémon will still be here for you if anything changes.",
     "*You can change your answer whenever you like."
   ],
 
   /* Shown when someone comes back to a saved RSVP. */
-  welcomeBack: "Oh — {NAME}. Back already? Your trainer card is where you left it.",
+  welcomeBack: "Oh, {NAME}. Back already? Your trainer card is where you left it.",
   welcomeBackAnon: "Welcome back. Your trainer card is where you left it."
 };

@@ -11,11 +11,15 @@
  * their minds.
  */
 
+/* New columns go on the END. doGet's verify check reads columns 1-3 by
+   position, and rows written before a column existed simply have a blank
+   there — both of which stay true as long as nothing is inserted earlier. */
 var HEADERS = [
   "id", "submittedAt", "revision", "attending",
   "name", "starter", "starterDex",
   "plusOne", "plusOneStarter", "plusOneDex",
-  "note", "rivalNamed", "rivalPokemon", "wonBattle", "attempts"
+  "note", "rivalNamed", "rivalPokemon", "wonBattle", "attempts",
+  "know", "knowClass", "plusOneKnow", "plusOneKnowClass"
 ];
 
 function doPost(e) {
@@ -36,7 +40,8 @@ function doPost(e) {
       d.id, d.submittedAt, d.revision, d.attending ? "YES" : "no",
       d.name, d.starter, d.starterDex,
       d.plusOne, d.plusOneStarter, d.plusOneDex,
-      d.note, d.rivalNamed, d.rivalPokemon, d.wonBattle ? "won" : "", d.attempts
+      d.note, d.rivalNamed, d.rivalPokemon, d.wonBattle ? "won" : "", d.attempts,
+      d.know || "", d.knowClass || "", d.plusOneKnow || "", d.plusOneKnowClass || ""
     ];
 
     var last = sheet.getLastRow();

@@ -45,7 +45,13 @@ function buildPayload(state) {
     rivalPokemon:   state.rivalSpecies ? DEX.byId[state.rivalSpecies].name : "",
     rivalNamed:     state.rivalName || "",      // what they called Pearl's grandson
     wonBattle:      !!state.won,
-    attempts:       state.attempts || 0
+    attempts:       state.attempts || 0,
+    // How much Pokemon they reckon they know, 1-5, plus the class name so the
+    // sheet reads without a decoder ring. Null when never answered.
+    know:           state.know || "",
+    knowClass:      state.know ? knowClass(state.know) : "",
+    plusOneKnow:    state.plusOneKnow || "",
+    plusOneKnowClass: state.plusOneKnow ? knowClass(state.plusOneKnow) : ""
   };
 }
 

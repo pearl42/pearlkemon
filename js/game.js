@@ -7,6 +7,8 @@ const on = (el, ev, fn) => el && el.addEventListener(ev, fn);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 
 const state = {
+  know: null,            // 1-5, how much Pokemon they say they know
+  plusOneKnow: null,     // same for their plus-one, or null if left blank
   id: null, revision: 0,
   name: "", rivalName: "", plusOneName: "", starter: null, plusOneStarter: null, comingSolo: false,
   rivalSpecies: null, won: false, attempts: 0, attending: null, note: "", handNote: "",
@@ -92,19 +94,44 @@ function showScene(id) {
 
 /* ---------- typewriter ---------- */
 let typing = null;
+/* Measure the box at its FINISHED size and hold it there while the line
+   types in. Otherwise a long line starts in a short box and shoves it taller
+   a row at a time, which looks like the panel is inflating — most obvious on
+   the battle tutorial, where the lines are the longest in the game. */
+function reserveBoxHeight(spanEl, body) {
+  const box = spanEl.parentElement;
+  if (!box || !box.classList.contains("textbox")) return;
+  const showing = spanEl.textContent;
+  box.style.minHeight = "";             // back to the CSS floor before measuring
+  spanEl.textContent = body;
+  const h = box.offsetHeight;
+  spanEl.textContent = showing;
+  box.style.minHeight = h + "px";
+}
+
 function typeInto(spanEl, arrowEl, text) {
   const isAside = text.startsWith("*");
   const body = isAside ? text.slice(1).trim() : text;
   spanEl.className = isAside ? "aside" : "";
   spanEl.textContent = "";
+  reserveBoxHeight(spanEl, body);       // measured with the final class applied
   if (arrowEl) arrowEl.hidden = true;
   if (typing) clearInterval(typing);
   let i = 0;
   const speed = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 18;
-  const finish = () => { spanEl.textContent = body; if (arrowEl) arrowEl.hidden = false; typing = null; };
+  const finish = () => {
+    spanEl.textContent = body;
+    if (arrowEl) arrowEl.hidden = false;
+    typing = null;
+    repositionHandNote();        // the finished line may be taller than the typed one
+  };
   if (!speed) return finish();
   typing = setInterval(() => {
     spanEl.textContent = body.slice(0, ++i);
+    // A long line wrapping onto another row makes the text box taller, which
+    // squeezes the stage and shifts her artwork mid-sentence. Cheap to check,
+    // and it's a no-op whenever the writing isn't on screen.
+    repositionHandNote();
     if (i >= body.length) { clearInterval(typing); finish(); }
   }, speed);
 }
@@ -261,6 +288,7 @@ if (typeof ResizeObserver !== "undefined") {
 }
 let handPlacedOn = "";      // which artwork the note was last measured against
 let handWaiting = false;
+let handArtPending = false; // an artwork swap is in flight; keep the note hidden
 
 /* The artwork wasn't ready to be measured against. Keep the writing hidden
    and try again as it loads, rather than showing it somewhere wrong. */
@@ -294,6 +322,7 @@ function updateHandNote(writing) {
   // Crucially: only reveal it once it HAS a place. Showing first and
   // measuring after is what made it flash, sometimes mid-screen, on the
   // frames where the artwork hadn't finished loading or laying out.
+  if (handArtPending) { note.classList.remove("show"); return; }
   handPlacedOn = pearlOutfit;
   if (placeHandNote()) {
     note.classList.add("show");
@@ -399,6 +428,106 @@ function ask(promptLine, placeholder, onSubmit, opts = {}) {
   });
 }
 
+/* ---------- the 1-5 knowledge picker ----------
+   Five numbers in a row with a blurb underneath, in the shape of the crate:
+   you move across the options and the panel tells you what each one means
+   before you commit to it. Nothing is submitted until the button is pressed,
+   which is the same lesson the crate taught us.
+
+   `required` (the guest's own answer) keeps the button disabled until they
+   pick. Without it (their plus-one) the button reads "Leave blank" and
+   stores null. */
+function buildKnowPicker(opts) {
+  const required = !!opts.required;
+  const wrap = document.createElement("div");
+  wrap.className = "level-pick";
+  const nums = document.createElement("div");
+  nums.className = "level-row";
+  const desc = document.createElement("div");
+  desc.className = "level-desc";
+  const go = document.createElement("button");
+  go.className = "btn primary";
+
+  let picked = opts.value || null;
+  const show = lv => {
+    desc.innerHTML = `<strong>${esc(lv.cls)}</strong><span>${esc(lv.blurb)}</span>`;
+    // blurbs are different lengths, so this panel changes height and the
+    // stage above it moves with it — same reason the prompt does
+    repositionHandNote();
+  };
+  const setButton = () => {
+    go.textContent = picked ? (opts.confirmLabel || UI.knowConfirm || "That's me ▸")
+                            : (UI.knowSkip || "Leave blank ▸");
+    go.disabled = required && !picked;
+  };
+
+  KNOW_LEVELS.forEach(lv => {
+    const b = document.createElement("button");
+    b.className = "btn level-btn"; b.type = "button";
+    b.textContent = lv.n;
+    b.setAttribute("aria-label", `${lv.n}. ${lv.cls}. ${lv.blurb}`);
+    if (picked === lv.n) b.classList.add("on");
+    on(b, "click", () => {
+      // tapping the one that's already lit clears it again, which is the only
+      // way to take a trainer class back off the card once it's been set
+      const undo = picked === lv.n;
+      picked = undo ? null : lv.n;
+      nums.querySelectorAll(".level-btn").forEach(x => x.classList.remove("on"));
+      if (!undo) b.classList.add("on");
+      show(lv); setButton(); Sound.play("select");
+    });
+    on(b, "focus", () => show(lv));            // keyboard: tab across them
+    on(b, "pointerenter", () => { if (window.matchMedia("(hover:hover)").matches) show(lv); });
+    nums.appendChild(b);
+  });
+
+  // a pointer leaving the row shouldn't leave a stranger's blurb up
+  on(nums, "pointerleave", () => {
+    const lv = KNOW_LEVELS.find(l => l.n === picked);
+    if (lv) show(lv); else desc.textContent = UI.knowHint || "Tap a number to see what it means.";
+  });
+
+  const current = KNOW_LEVELS.find(l => l.n === picked);
+  if (current) show(current);
+  else desc.textContent = UI.knowHint || "Tap a number to see what it means.";
+  setButton();
+  on(go, "click", () => { if (!(required && !picked)) opts.onDone(picked); });
+
+  wrap.append(nums, desc, go);
+  return wrap;
+}
+
+/* In the story: Pearl asks, the picker appears under her text box. */
+function askKnowLevel(lines, promptLine, opts, onDone) {
+  say(lines, () => {
+    const token = chainToken;
+    typeInto($("talk-text"), $("talk-arrow"), fill(promptLine));
+    $("talk-arrow").hidden = true;
+    const row = $("talk-buttons");
+    row.hidden = false; row.innerHTML = "";
+    row.appendChild(buildKnowPicker({
+      required: !!opts.required,
+      onDone: n => {
+        if (token !== chainToken) return;
+        Sound.play("select");
+        row.innerHTML = ""; row.hidden = true;
+        onDone(n);
+      }
+    }));
+    repositionHandNote();        // this row resizes the stage
+  }, PEARL());
+}
+
+/* The class name for a stored answer — looked up, never stored, so the
+   names in config stay editable. */
+function knowClass(n) {
+  const lv = KNOW_LEVELS.find(l => l.n === n);
+  return lv ? lv.cls : "";
+}
+
+/* Did they ask for a hand? Used to fold in the extra explanations. */
+const wantsHelp = () => state.know !== null && state.know <= 2;
+
 /* A row of choices under the text box. */
 function choose(lines, options, portrait) {
   say(lines, () => {
@@ -455,9 +584,14 @@ function wearTheCostume() {
   const note = $("hand-note");
   const wasShown = note && note.classList.contains("show");
   if (wasShown) note.classList.remove("show");
+  // Nothing may reveal the note until the new picture has been measured —
+  // without this, the next line of dialogue calls updateHandNote, which
+  // happily places against the OUTGOING artwork's box and shows it there.
+  handArtPending = true;
   const replace = () => {
-    if (!state.handNote) return;
-    placeHandNote();
+    if (!state.handNote) { handArtPending = false; return; }
+    if (!placeHandNote()) return;              // artwork still not ready
+    handArtPending = false;
     if (wasShown && note) note.classList.add("show");
   };
   if (img.decode) img.decode().then(replace).catch(replace);
@@ -477,11 +611,22 @@ function start() {
 function askPlayerName() {
   ask(SCRIPT.askName, "Your name", v => {
     state.name = v;
-    say(SCRIPT.afterName, () => say(SCRIPT.rivalIntro, askRivalName, RIVAL()), PEARL());
+    say(SCRIPT.afterName, askKnow, PEARL());
+  });
+}
+
+/* How much do they know? Asked once, before the rival turns up, so every
+   beat after this can be pitched at them. */
+function askKnow() {
+  askKnowLevel(SCRIPT.askKnow, SCRIPT.askKnowPrompt, { required: true }, n => {
+    state.know = n;
+    const reply = (SCRIPT.knowReply || {})[n];
+    const after = () => say(SCRIPT.afterKnow, () => say(SCRIPT.rivalIntro, askRivalName, RIVAL()), PEARL());
+    if (reply) say([reply], after, PEARL()); else after();
   });
 }
 function askRivalName() {
-  ask(SCRIPT.askRival, "Who are you bringing?", v => {
+  ask(SCRIPT.askRival, "Who is this loser?", v => {
     state.rivalName = v;
     say(SCRIPT.afterRival, () => say(SCRIPT.starterIntro, () => openCrate("player"), PEARL()), PEARL());
   });
@@ -562,7 +707,7 @@ function setPickInfo(s) {
     const who = crateMode.endsWith("plusone")
       ? `Pick one for ${esc(state.plusOneName || "your plus-one")}.`
       : `Thirty years of fieldwork, and not one label.`;
-    $("starter-text").innerHTML = `${who} Open a ball — or search if you already know who you want.`;
+    $("starter-text").innerHTML = `${who} Open a ball, or search if you already know who you want.`;
   } else {
     const chips = s.types.map(t =>
       `<span class="type-chip" style="background:${TYPE_COLORS[t]}">${t}</span>`).join("");
@@ -581,7 +726,7 @@ function setPickInfo(s) {
     solo.className = "btn ghost";
     solo.textContent = `${state.plusOneName || "They"} isn't coming`;
     on(solo, "click", goSolo);
-    row.appendChild(solo);
+    //row.appendChild(solo);
   } else if (crateMode.startsWith("edit")) {
     const back = document.createElement("button");
     back.className = "btn ghost"; back.textContent = "← Back";
@@ -692,12 +837,17 @@ function choosePokemon(id) {
       state.starter = id;
       state.rivalSpecies = pickRivalSpecies(id);
       say(reactionTo(id, SCRIPT.afterStarter),
-          () => say(SCRIPT.rivalTaunt, beginBattle, RIVAL()), PEARL());
+          () => say(SCRIPT.rivalTaunt, afterTaunt, RIVAL()), PEARL());
       break;
     case "plusone":
       state.plusOneStarter = id;
       state.comingSolo = false;
-      say(jokeFor(id).concat(SCRIPT.afterPlusOne), openCard, PEARL());
+      // Announce the pick, ask how much they know, then wrap up. The question
+      // sits after the FIRST line of afterPlusOne — the "{PLUSONE} chose X"
+      // beat — so it lands on the choice rather than on the trainer card.
+      say(jokeFor(id).concat(SCRIPT.afterPlusOne.slice(0, 1)),
+          () => askPlusOneKnow(() => say(SCRIPT.afterPlusOne.slice(1), openCard, PEARL())),
+          PEARL());
       break;
     case "edit-player":
       state.starter = id;
@@ -742,6 +892,16 @@ function setMenuBusy(busy) {
     else if (b.dataset.wasEnabled) { delete b.dataset.wasEnabled; b.disabled = false; }
   });
 }
+
+/* A 1 or a 2 gets the type chart explained before the rival starts, since his
+   whole boast depends on knowing what one is. Everybody else goes straight in. */
+function afterTaunt() {
+  const help = SCRIPT.helpTypeChart || [];
+  if (wantsHelp() && help.length) return say(help, beginBattle, PEARL());
+  beginBattle();
+}
+
+let helpedFirstMenu = false;      // the move-tag explanation, once per visit
 
 function beginBattle() {
   state.attempts++;
@@ -838,6 +998,16 @@ on($("battle-box"), "keydown", e => { if (e.key === "Enter" || e.key === " ") { 
 
 function showBattleMenu() {
   if (battle.over) return finishBattle();
+
+  // First menu of their first battle, for a 1 or a 2: say what the tags on
+  // the buttons mean before asking them to choose. Once only — after that
+  // it's nagging.
+  const firstHelp = SCRIPT.helpFirstMenu || [];
+  if (wantsHelp() && !helpedFirstMenu && firstHelp.length) {
+    helpedFirstMenu = true;
+    eventQueue = firstHelp.map(text => ({ t: "text", text }));
+    return drainEvents(showBattleMenu);
+  }
 
   battleLine = `What will ${battle.me().name} do?`;
   typeInto($("battle-text"), $("battle-arrow"), battleLine);
@@ -962,8 +1132,20 @@ function askPlusOneName() {
     if (!v) { state.comingSolo = true; return say(SCRIPT.soloPath, openCard, PEARL()); }
     state.plusOneName = v;
     state.comingSolo = false;
+    // Straight to the crate — her last line is "let's pick out a starter",
+    // so anything between that and the crate reads as an interruption. The
+    // knowledge question happens once the Pokémon is chosen.
     say(SCRIPT.afterPlusOneName, () => openCrate("plusone"), PEARL());
   }, { allowEmpty: true });
+}
+
+/* Their plus-one's level. Optional: the guest may simply not know, and a
+   shrug is better data than a guess. */
+function askPlusOneKnow(then) {
+  askKnowLevel(SCRIPT.askPlusOneKnow, SCRIPT.askPlusOneKnowPrompt, { required: false }, n => {
+    state.plusOneKnow = n;
+    then();
+  });
 }
 
 /* ============================================================
@@ -986,22 +1168,26 @@ function renderCard() {
   const editBtn = k => `<button class="edit-btn" data-edit="${k}" aria-label="Edit">✎</button>`;
 
   $("details-card").innerHTML = `
-    <div class="kicker">Trainer Card${state.name ? " · " + esc(state.name) : ""}</div>
+    <div class="kicker">Trainer Card${state.name ? ": " + esc(state.name) : ""}</div>
     <h2>${esc(PARTY.hostName)}'s ${esc(PARTY.occasion)}</h2>
 
     <div class="detail-row"><span class="k">When</span><span class="v">${esc(PARTY.dateLong)}<br>${esc(PARTY.time)}${PARTY.rsvpBy ? `<small>RSVP by ${esc(PARTY.rsvpBy)}</small>` : ""}</span></div>
     <div class="detail-row"><span class="k">Where</span><span class="v">${esc(PARTY.address)}${mapLink}<small>${esc(PARTY.addressNote)}</small></span></div>
-    <div class="detail-row"><span class="k">Theme</span><span class="v">${esc(PARTY.theme)}<small>${esc(PARTY.themeNote)}</small></span></div>
+    <div class="detail-row"><span class="k">Theme</span><span class="v">${esc(PARTY.theme2)}<small>${esc(PARTY.themeNote)}</small></span></div>
+    <div class="detail-row"><span class="k">Attire</span><span class="v">${esc(PARTY.attire)}<small>${esc(PARTY.attireNote)}</small></span></div>
     ${PARTY.food ? `<div class="detail-row"><span class="k">Food</span><span class="v">${esc(PARTY.food)}${PARTY.foodNote ? `<small>${esc(PARTY.foodNote)}</small>` : ""}</span></div>` : ""}
 
     <div class="card-split">Your party</div>
 
-    <div class="detail-row"><span class="k">You</span><span class="v">${state.name ? esc(state.name) : `<span class="empty">not set</span>`} ${editBtn("name")}</span></div>
+    <div class="detail-row"><span class="k">You</span><span class="v">${state.name ? esc(state.name) : `<span class="empty">not set</span>`} ${editBtn("name")}
+      <small class="tclass">${state.know ? esc(knowClass(state.know)) : `<span class="empty">no trainer class set</span>`} ${editBtn("know")}</small></span></div>
     <div class="detail-row"><span class="k">Partner</span><span class="v">${monLine(state.starter, "none chosen")} ${editBtn("starter")}</span></div>
-    <div class="detail-row"><span class="k">Plus-one</span><span class="v">${state.comingSolo || !state.plusOneName ? `<span class="empty">coming solo</span>` : esc(state.plusOneName)} ${editBtn("plusone")}</span></div>
+    <div class="detail-row"><span class="k">Plus-one</span><span class="v">${state.comingSolo || !state.plusOneName ? `<span class="empty">coming solo</span>` : esc(state.plusOneName)} ${editBtn("plusone")}
+      ${state.comingSolo || !state.plusOneName ? "" :
+        `<small class="tclass">${state.plusOneKnow ? esc(knowClass(state.plusOneKnow)) : `<span class="empty">not set</span>`} ${editBtn("plusoneknow")}</small>`}</span></div>
     ${state.comingSolo || !state.plusOneName ? "" :
       `<div class="detail-row"><span class="k">Their partner</span><span class="v">${monLine(state.plusOneStarter, "none chosen")} ${editBtn("plusonestarter")}</span></div>`}
-    <div class="detail-row"><span class="k">Message</span><span class="v">${state.note ? esc(state.note) : `<span class="empty">none</span>`} ${editBtn("note")}</span></div>
+    <div class="detail-row"><span class="k">Message for the host</span><span class="v">${state.note ? esc(state.note) : `<span class="empty">none</span>`} ${editBtn("note")}</span></div>
     <p class="card-hint">${esc(UI.editHint)}</p>`;
 
   $("details-card").querySelectorAll(".edit-btn").forEach(b =>
@@ -1042,10 +1228,41 @@ function renderCard() {
   }
 }
 
+/* The same picker, mounted on the card — the other card edits happen in
+   place, and bouncing out to Pearl to change one field would be a bigger
+   journey than the edit deserves. */
+function editKnow(key) {
+  const mine = key === "know";
+  const who  = mine ? (state.name || "You") : (state.plusOneName || "Your plus-one");
+
+  const card = $("details-card");
+  card.innerHTML = `
+    <div class="kicker">Editing</div>
+    <h2>${esc(UI.knowClassLabel || "Trainer class")}</h2>
+    <p class="card-hint">How much Pokémon does ${esc(who)} know?</p>`;
+  card.appendChild(buildKnowPicker({
+    required: false,
+    value: mine ? state.know : state.plusOneKnow,
+    confirmLabel: "Save",
+    onDone: n => {
+      if (mine) state.know = n; else state.plusOneKnow = n;
+      renderCard();
+    }
+  }));
+
+  const row = $("details-buttons");
+  row.innerHTML = "";
+  const cancel = document.createElement("button");
+  cancel.className = "btn"; cancel.textContent = "Cancel";
+  on(cancel, "click", renderCard);
+  row.appendChild(cancel);
+}
+
 /* Inline editors, rendered into the card itself. */
 function editField(key) {
   if (key === "starter")         return openCrate("edit-player");
   if (key === "plusonestarter")  return openCrate("edit-plusone");
+  if (key === "know" || key === "plusoneknow") return editKnow(key);
 
   const cfg = {
     name:    { label: "Your name",    value: state.name,      max: 14, placeholder: "Your name" },
@@ -1185,6 +1402,10 @@ function restore(saved) {
   state.note           = saved.note || "";
   state.won            = !!saved.wonBattle;
   state.attempts       = saved.attempts || 0;
+  // Anyone who RSVP'd before this question existed simply has no answer yet.
+  const lvl = n => (KNOW_LEVELS.some(l => l.n === +n) ? +n : null);
+  state.know           = lvl(saved.know);
+  state.plusOneKnow    = lvl(saved.plusOneKnow);
 }
 
 (async function boot() {

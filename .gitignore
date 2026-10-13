@@ -16,3 +16,9 @@ Thumbs.db
 desktop.ini
 *.swp
 *~
+
+# Party-game design work: mockups, previews and prototypes for the thing that
+# happens AT the party. The repo is public and GitHub Pages serves it, so
+# anything committed here is readable by guests before the 21st.
+Claude outputs/
+party-game/
