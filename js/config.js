@@ -12,14 +12,14 @@ const PARTY = {
   occasion:  "30th Birthday",
   dateLong:  "Saturday, November 21st",
   time:      "6:00 PM",
-  address:   "House with the penguin mailbox",
+  address:   "Chateau Pinguino",
   addressNote: "",
   mapUrl:    "https://maps.app.goo.gl/JQ88x47KNvYBraQa9",                       // optional Google Maps link
-  theme:     "Back to the VERY FIRST party theme: Pokémon.",
+  theme:     "Back to the VERY FIRST party theme: Pokémon!",
   theme2:     "Pokémon",
   themeNote: "No prior knowledge required!",
   attire: "Costumes encouraged! Pokémon, trainer, Team Rocket--the world is your Cloyster",
-  attireNote: "Costumes are a silly little birthday treat for me, not a necessity (and spares will be available at the door :)",
+  attireNote: "(spare costume accessories will be available at the door :)",
   food:      "SO MUCH. You will be well-fed!",
   foodNote:  "Tell me below if you have any dietary restrictions I should plan+label for!",
   rsvpBy:    "",
@@ -263,7 +263,7 @@ const SCRIPT = {
     1: "PEARL: Yay for a first-time trainer! I'll include a little extra info as we go, then.",
     2: "PEARL: You'll pick it right up! I'll help fill in the gaps as we go.",
     3: "PEARL: It comes back quickly! Like riding a bicycle. Except now's not the time to use that.",
-    4: "PEARL: Enough to get all the jokes but not so much you break my battling logic--perf!",
+    4: "PEARL: You'll get all the jokes but won't break my battling code--perfect!",
     5: "PEARL: Well then I won't insult you by explaining type effectiveness!"
   },
   afterKnow: [
@@ -292,7 +292,6 @@ const SCRIPT = {
   ],
   afterStarter: [
     "{STARTER}! Oh, that's a good one. Bold choice.",
-    "*{RIVAL} is hiding his phone screen to conceal a Pokémon Type Effectiveness Chart.",
     "*{RIVAL} grabs a ball of his own, smirking at you as he does."
   ],
   /* Extra lines for guests who said 1 or 2. Purely additive — everybody sees

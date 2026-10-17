@@ -170,6 +170,7 @@ function say(lines, onEnd, portrait) {
       setSprite(img, wantSrc, portrait.label, portrait.color);
       img.hidden = false;
       currentSpeaker = portrait.label;
+      syncPortraitScale();            // the new speaker matches the last one's height
       updateHandNote(false);
     }
   }
@@ -267,6 +268,9 @@ function placeHandNote() {
    appears, and when the phone is rotated. Any of those moves the artwork, so
    the writing has to be re-measured against it. */
 function repositionHandNote() {
+  // Pearl's rendered height is what the other speakers are held to, and it
+  // changes whenever the stage does — so re-read it on the same beat.
+  syncPortraitScale();
   const note = $("hand-note");
   if (note && note.classList.contains("show")) placeHandNote();
 }
@@ -370,9 +374,52 @@ function writeOnHand() {
 on(window, "resize", placeHandNote);
 on($("talk-portrait"), "load", () => updateHandNote(false));
 
+/* ---------- one height for every speaker ----------
+   Pearl and the rival are drawn at different scales inside their own files —
+   his figure sits in a taller, narrower canvas — so the same CSS cap renders
+   him a head taller than her and the cut between them lurches. Her rendered
+   height is the measure: from her artwork's own proportions we work out how
+   tall she renders on the stage as it stands, and cap him at that. Recomputed
+   rather than remembered, so it still holds when the prompt opens and the
+   stage gets shorter.
+
+   Pearl's own rendering is untouched, which is what keeps the writing on her
+   hand where placeHandNote() put it. */
+const PORTRAIT_CAP = 0.86;      // keep in step with .portrait max-width in style.css
+let pearlAspect = 0;            // her art's own width/height, whichever outfit she's in
+function syncPortraitScale() {
+  const img = $("talk-portrait"), wrap = $("portrait-wrap");
+  if (!img || !wrap || img.hidden || !img.naturalHeight) return;
+  if (!/rival/.test(img.getAttribute("src") || "")) {
+    // Hers is the reference rendering, so it keeps the stylesheet's own sizing
+    // and the hand-note maths that was measured against it.
+    if (img.style.maxHeight || img.style.maxWidth) { img.style.maxHeight = ""; img.style.maxWidth = ""; }
+    pearlAspect = img.naturalWidth / img.naturalHeight;
+    return;
+  }
+  if (!pearlAspect) return;
+  // How tall she would be on this stage right now — the stage is what binds on
+  // a desktop, its width on a phone — then hold him to that in pixels. The
+  // width cap has to come off, or it gets applied a second time to the width
+  // this height implies and he ends up 14% short.
+  const stage = wrap.parentElement, cs = getComputedStyle(stage);
+  const availW = stage.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
+  const availH = stage.clientHeight - parseFloat(cs.paddingTop || 0) - parseFloat(cs.paddingBottom || 0);
+  if (!(availW > 0 && availH > 0)) return;
+  const want = Math.round(PORTRAIT_CAP * Math.min(availW / pearlAspect, availH)) + "px";
+  if (img.style.maxHeight !== want) { img.style.maxHeight = want; img.style.maxWidth = "none"; }
+}
+on($("talk-portrait"), "load", syncPortraitScale);
+window.addEventListener("resize", syncPortraitScale);
+window.addEventListener("orientationchange", syncPortraitScale);
+
 function tapTalk() {
   if (fastForward($("talk-text"), $("talk-arrow"), currentLine)) return;
   if (!$("talk-input-wrap").hidden) return;   // mid-input: the box isn't a "next"
+  // A visible row of buttons means the story is waiting on a choice, not on a
+  // tap. Advancing here ran hidePrompt(), which wiped the buttons out from
+  // under the guest and left the screen with nothing left to press.
+  if (!$("talk-buttons").hidden) return;
   advanceTalk();
 }
 on($("talk-box"), "click", tapTalk);
@@ -382,6 +429,7 @@ function hidePrompt() {
   $("talk-input-wrap").hidden = true;
   $("talk-buttons").hidden = true;
   $("talk-buttons").innerHTML = "";
+  $("talk-box").hidden = false;   // the knowledge picker borrows the whole box
   repositionHandNote();       // the stage just grew back
 }
 
@@ -441,6 +489,15 @@ function buildKnowPicker(opts) {
   const required = !!opts.required;
   const wrap = document.createElement("div");
   wrap.className = "level-pick";
+  // The question lives in the panel itself. It used to sit in Pearl's text box
+  // above, which stacked two boxes on one screen, squeezed her artwork, and
+  // tempted a tap on a box that wasn't a "next".
+  let title = null;
+  if (opts.title) {
+    title = document.createElement("div");
+    title.className = "level-q";
+    title.textContent = opts.title;
+  }
   const nums = document.createElement("div");
   nums.className = "level-row";
   const desc = document.createElement("div");
@@ -493,6 +550,7 @@ function buildKnowPicker(opts) {
   setButton();
   on(go, "click", () => { if (!(required && !picked)) opts.onDone(picked); });
 
+  if (title) wrap.appendChild(title);
   wrap.append(nums, desc, go);
   return wrap;
 }
@@ -501,16 +559,18 @@ function buildKnowPicker(opts) {
 function askKnowLevel(lines, promptLine, opts, onDone) {
   say(lines, () => {
     const token = chainToken;
-    typeInto($("talk-text"), $("talk-arrow"), fill(promptLine));
     $("talk-arrow").hidden = true;
+    $("talk-box").hidden = true;          // the picker asks the question itself
     const row = $("talk-buttons");
     row.hidden = false; row.innerHTML = "";
     row.appendChild(buildKnowPicker({
       required: !!opts.required,
+      title: fill(promptLine),
       onDone: n => {
         if (token !== chainToken) return;
         Sound.play("select");
         row.innerHTML = ""; row.hidden = true;
+        $("talk-box").hidden = false;
         onDone(n);
       }
     }));

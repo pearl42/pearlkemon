@@ -100,6 +100,8 @@ body {
   background: linear-gradient(180deg, var(--sky-2) 0%, #eef6fb 70%, #e3ecd8 100%);
   padding: 18px;
 }
+/* 86% is also PORTRAIT_CAP in game.js, which works out the rival's height from
+   it so he matches Pearl's. Change one and change the other. */
 .portrait {
   max-height: 100%; max-width: 86%; width: auto; object-fit: contain;
   filter: drop-shadow(0 6px 10px rgba(0,0,0,.18));
@@ -527,6 +529,13 @@ textarea.field-edit { min-height: 92px; line-height: 1.5; font-size: 15px; }
    the one you're pointing at actually means, and nothing committed until the
    button is pressed. */
 .level-pick { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+/* The question itself, in the panel. Pearl's text box used to carry it, which
+   put two boxes on the one screen and squeezed her artwork for the privilege. */
+.level-q {
+  font-family: var(--font); font-size: 15px; line-height: 1.3;
+  color: var(--ink); text-align: center; padding: 0 2px;
+  font-variant-ligatures: none;
+}
 .level-row  { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .level-btn {
   min-height: 48px; padding: 0;
